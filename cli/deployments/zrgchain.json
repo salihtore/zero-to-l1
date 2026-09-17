@@ -1,0 +1,10 @@
+{
+  "chainName": "zrgchain",
+  "tokenSymbol": "ZRG",
+  "blockchainID": "",
+  "rpcURL": "",
+  "chainID": 97855,
+  "network": "fuji",
+  "deployedAt": "2026-09-17T21:39:11.0913059Z",
+  "status": "partial"
+}
