@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/zero-to-l1/cli/internal/launcher"
 )
 
 var rootCmd = &cobra.Command{
@@ -15,9 +16,10 @@ var rootCmd = &cobra.Command{
 
 var launchCmd = &cobra.Command{
 	Use:   "launch",
-	Short: "Launch a new Avalanche L1/subnet",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("not implemented yet")
+	Short: "Launch a new Avalanche L1/subnet on Avalanche Fuji Testnet",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		runner := &launcher.DefaultRunner{}
+		return launcher.ExecuteLaunch(cmd.Context(), runner, "deployments")
 	},
 }
 
@@ -31,4 +33,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
