@@ -1,0 +1,98 @@
+name: Zero to Secure L1 CI
+
+on:
+  push:
+    branches: [ main, master, "feat/*", "fix/*" ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  cli-build-and-test:
+    name: CLI (Go) - Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache-dependency-path: cli/go.sum
+
+      - name: Build CLI
+        run: |
+          cd cli
+          go build ./...
+
+      - name: Vet CLI
+        run: |
+          cd cli
+          go vet ./...
+
+      - name: Test CLI
+        run: |
+          cd cli
+          go test -v ./...
+
+  backend-build:
+    name: Dashboard Backend (Go) - Build & Vet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build Backend
+        run: |
+          cd dashboard/backend
+          go build ./...
+
+      - name: Vet Backend
+        run: |
+          cd dashboard/backend
+          go vet ./...
+
+  frontend-build:
+    name: Dashboard Frontend (React) - Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: dashboard/frontend/package-lock.json
+
+      - name: Install dependencies & Build Frontend
+        run: |
+          cd dashboard/frontend
+          npm ci
+          npm run build
+
+  security-scanner-setup:
+    name: Security Scanner (Python) - Dependencies Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+          cache-dependency-path: security-scanner/requirements.txt
+
+      - name: Install Requirements
+        run: |
+          cd security-scanner
+          pip install -r requirements.txt
+
