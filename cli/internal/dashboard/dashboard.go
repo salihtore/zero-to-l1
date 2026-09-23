@@ -138,3 +138,4 @@ func (r *DefaultRunner) findFrontendDir() (string, error) {
 
 	return "", fmt.Errorf("could not locate dashboard/frontend/package.json")
 }
+

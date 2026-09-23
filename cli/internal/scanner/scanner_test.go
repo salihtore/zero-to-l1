@@ -63,3 +63,4 @@ func TestDefaultRunner_FindScannerScript(t *testing.T) {
 		t.Errorf("expected script path '%s', got '%s'", dummyScript, scriptPath)
 	}
 }
+

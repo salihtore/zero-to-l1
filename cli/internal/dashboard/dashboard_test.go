@@ -65,3 +65,4 @@ func TestDefaultRunner_FindDirectories(t *testing.T) {
 		t.Errorf("expected frontend dir %s, got %s", frontendDir, foundFrontend)
 	}
 }
+

@@ -113,3 +113,4 @@ func (r *DefaultRunner) findScannerScript() (string, error) {
 
 	return "", fmt.Errorf("could not locate security-scanner/scanner.py")
 }
+
