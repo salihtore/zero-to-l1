@@ -181,12 +181,12 @@ func TestMockLauncherWorkflow(t *testing.T) {
 
 // MockCLIVersionChecker implements CLIVersionChecker for tests without network or subprocesses.
 type MockCLIVersionChecker struct {
-	LocalCLIVersion    string
-	LocalCLIErr        error
-	LocalAGVersion     string
-	LocalAGErr         error
-	LatestRelease      *GitHubRelease
-	LatestReleaseErr   error
+	LocalCLIVersion  string
+	LocalCLIErr      error
+	LocalAGVersion   string
+	LocalAGErr       error
+	LatestRelease    *GitHubRelease
+	LatestReleaseErr error
 }
 
 func (m *MockCLIVersionChecker) FetchLatestRelease(_ context.Context) (*GitHubRelease, error) {
