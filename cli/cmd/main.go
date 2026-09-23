@@ -23,8 +23,24 @@ var launchCmd = &cobra.Command{
 	},
 }
 
+var fixPluginCmd = &cobra.Command{
+	Use:     "fix-plugin [chainName]",
+	Aliases: []string{"fix-vm", "build-plugin"},
+	Short:   "Build and install RPCChainVM protocol v46 compatible Subnet-EVM plugin for AvalancheGo v1.15.0",
+	Args:    cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		chainName := "zrgchain"
+		if len(args) > 0 && args[0] != "" {
+			chainName = args[0]
+		}
+		fixer := &launcher.DefaultPluginFixer{}
+		return fixer.FixPlugin(cmd.Context(), chainName, "v1.15.0")
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(launchCmd)
+	rootCmd.AddCommand(fixPluginCmd)
 }
 
 func main() {
