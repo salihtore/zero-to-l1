@@ -5,7 +5,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/zero-to-l1/cli/internal/dashboard"
 	"github.com/zero-to-l1/cli/internal/launcher"
+	"github.com/zero-to-l1/cli/internal/scanner"
 )
 
 var rootCmd = &cobra.Command{
@@ -38,9 +40,33 @@ var fixPluginCmd = &cobra.Command{
 	},
 }
 
+var scanCmd = &cobra.Command{
+	Use:   "scan <target>",
+	Short: "Run Avalanche Teleporter/ICM security vulnerability scanner on Solidity contracts",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		runner := &scanner.DefaultRunner{}
+		return runner.Scan(cmd.Context(), args[0])
+	},
+}
+
+var dashboardPort int
+var dashboardCmd = &cobra.Command{
+	Use:   "dashboard",
+	Short: "Launch the web dashboard backend and frontend monitoring interface",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		runner := &dashboard.DefaultRunner{}
+		return runner.Start(cmd.Context(), dashboardPort, 5173)
+	},
+}
+
 func init() {
+	dashboardCmd.Flags().IntVarP(&dashboardPort, "port", "p", 8080, "Port for dashboard backend API")
+
 	rootCmd.AddCommand(launchCmd)
 	rootCmd.AddCommand(fixPluginCmd)
+	rootCmd.AddCommand(scanCmd)
+	rootCmd.AddCommand(dashboardCmd)
 }
 
 func main() {
