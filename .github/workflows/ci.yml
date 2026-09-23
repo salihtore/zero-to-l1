@@ -17,7 +17,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
           cache-dependency-path: cli/go.sum
 
       - name: Build CLI
@@ -35,8 +35,8 @@ jobs:
           cd cli
           go test -v ./...
 
-  backend-build:
-    name: Dashboard Backend (Go) - Build & Vet
+  backend-build-and-test:
+    name: Dashboard Backend (Go) - Build & Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -45,7 +45,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
 
       - name: Build Backend
         run: |
@@ -57,6 +57,11 @@ jobs:
           cd dashboard/backend
           go vet ./...
 
+      - name: Test Backend
+        run: |
+          cd dashboard/backend
+          go test -v ./...
+
   frontend-build:
     name: Dashboard Frontend (React) - Build
     runs-on: ubuntu-latest
@@ -67,7 +72,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: dashboard/frontend/package-lock.json
 
@@ -77,8 +82,8 @@ jobs:
           npm ci
           npm run build
 
-  security-scanner-setup:
-    name: Security Scanner (Python) - Dependencies Check
+  security-scanner-test:
+    name: Security Scanner (Python) - Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -96,3 +101,7 @@ jobs:
           cd security-scanner
           pip install -r requirements.txt
 
+      - name: Run Detector Unit Tests
+        run: |
+          cd security-scanner
+          python -m unittest discover -v
