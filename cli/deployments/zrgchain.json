@@ -1,10 +1,10 @@
 {
   "chainName": "zrgchain",
   "tokenSymbol": "ZRG",
-  "blockchainID": "",
-  "rpcURL": "",
+  "blockchainID": "23FRkv8jgynuXurD6x7riX2mAjpPK5XAhRzJ5KnEfw6a8U45FE",
+  "rpcURL": "http://127.0.0.1:9650/ext/bc/23FRkv8jgynuXurD6x7riX2mAjpPK5XAhRzJ5KnEfw6a8U45FE/rpc",
   "chainID": 90349,
   "network": "fuji",
-  "deployedAt": "2026-09-18T18:25:42.3367259Z",
-  "status": "partial"
+  "deployedAt": "2026-09-23T18:21:15.000Z",
+  "status": "deployed"
 }
