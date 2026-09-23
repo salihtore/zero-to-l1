@@ -28,6 +28,8 @@
 
 set -euo pipefail
 
+export PATH="$HOME/.local/go/bin:$HOME/go/bin:$HOME/bin:$PATH"
+
 # ── Colour helpers ─────────────────────────────────────────────────────────────
 RED='\033[0;31m'; YELLOW='\033[1;33m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 info()    { echo -e "${CYAN}ℹ️  $*${NC}"; }
