@@ -20,9 +20,8 @@ import (
 )
 
 const (
-	InstallDocURL    = "https://docs.avax.network/tooling/cli-guides/install-avalanche-cli"
-	FaucetURL        = "https://core.app/tools/testnet-faucet/"
-	DefaultVMVersion = "v0.8.0"
+	InstallDocURL = "https://docs.avax.network/tooling/cli-guides/install-avalanche-cli"
+	FaucetURL     = "https://core.app/tools/testnet-faucet/"
 )
 
 // LaunchConfig contains the user inputs for blockchain creation.
@@ -87,8 +86,10 @@ func (r *DefaultRunner) CheckInstalled(ctx context.Context) (string, string, err
 
 func (r *DefaultRunner) CreateConfig(ctx context.Context, config LaunchConfig) error {
 	var cmd *exec.Cmd
-	// Option B: Pass --vm-version v0.8.0 to avoid avalanche-cli "latest" semantic version bug
-	args := []string{"blockchain", "create", config.ChainName, "--force", "--vm-version", DefaultVMVersion}
+	// Do not pass --vm-version. CLI v1.9.6 resolves it to Subnet-EVM v0.8.0,
+	// incompatible with AvalancheGo v1.15.0-fuji (RPCChainVM v46).
+	// TODO: automate the matching-plugin flow in scripts/build-subnet-evm-plugin.sh.
+	args := []string{"blockchain", "create", config.ChainName, "--force"}
 
 	if r.Mode == "wsl" {
 		wslArgs := append([]string{r.ExecPath}, args...)
@@ -101,7 +102,7 @@ func (r *DefaultRunner) CreateConfig(ctx context.Context, config LaunchConfig) e
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	fmt.Printf("\n🚀 Launching avalanche-cli creation wizard for blockchain '%s' (Subnet-EVM: %s)...\n", config.ChainName, DefaultVMVersion)
+	fmt.Printf("\n🚀 Launching avalanche-cli creation wizard for blockchain '%s'...\n", config.ChainName)
 	return cmd.Run()
 }
 
@@ -277,6 +278,29 @@ func ExecuteLaunch(ctx context.Context, runner Runner, deploymentsDir string) er
 	}
 
 	fmt.Printf("✅ Found avalanche-cli (%s mode: %s)\n\n", mode, execPath)
+
+	// ── Pre-check: version & RPCChainVM protocol compatibility ───────────────
+	// avalanche-cli v1.9.6 ships Subnet-EVM v0.8.0 (RPCChainVM protocol v44)
+	// but Fuji requires AvalancheGo v1.15.0 (RPCChainVM protocol v46).
+	// Warn the user and ask for confirmation before proceeding with deployment.
+	checker := &DefaultCLIVersionChecker{
+		WSLAvalanchePath: execPath,
+	}
+	precheckCtx, precheckCancel := context.WithTimeout(ctx, 20*time.Second)
+	result, _ := CheckAvalancheCLIUpdate(precheckCtx, checker)
+	precheckCancel()
+
+	if result != nil && result.ProtocolMismatchDetected {
+		fmt.Println("\n⚠️  WARNING: A RPCChainVM protocol mismatch has been detected.")
+		fmt.Println("   Proceeding will likely result in a failed deploy or a node that cannot track your blockchain.")
+		fmt.Print("\n   Continue anyway? (y/N): ")
+		var answer string
+		if _, scanErr := fmt.Scanln(&answer); scanErr != nil || !strings.EqualFold(strings.TrimSpace(answer), "y") {
+			return fmt.Errorf("aborted by user due to RPCChainVM protocol mismatch — fix the plugin first")
+		}
+		fmt.Println()
+	}
+	// ─────────────────────────────────────────────────────────────────────────
 
 	config, err := PromptUserInput()
 	if err != nil {

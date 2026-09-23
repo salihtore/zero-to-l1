@@ -3,6 +3,8 @@ package launcher
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -172,5 +174,220 @@ func TestMockLauncherWorkflow(t *testing.T) {
 	// Verify file was written
 	if _, err := os.Stat(filepath.Join(tempDir, "mockchain.json")); os.IsNotExist(err) {
 		t.Fatalf("expected deployment JSON file does not exist")
+	}
+}
+
+// ── Precheck unit tests ──────────────────────────────────────────────────────
+
+// MockCLIVersionChecker implements CLIVersionChecker for tests without network or subprocesses.
+type MockCLIVersionChecker struct {
+	LocalCLIVersion    string
+	LocalCLIErr        error
+	LocalAGVersion     string
+	LocalAGErr         error
+	LatestRelease      *GitHubRelease
+	LatestReleaseErr   error
+}
+
+func (m *MockCLIVersionChecker) FetchLatestRelease(_ context.Context) (*GitHubRelease, error) {
+	return m.LatestRelease, m.LatestReleaseErr
+}
+
+func (m *MockCLIVersionChecker) GetLocalCLIVersion(_ context.Context) (string, error) {
+	return m.LocalCLIVersion, m.LocalCLIErr
+}
+
+func (m *MockCLIVersionChecker) GetLocalAvalancheGoVersion(_ context.Context) (string, error) {
+	return m.LocalAGVersion, m.LocalAGErr
+}
+
+// TestCheckAvalancheCLIUpdate_UpToDate verifies that when local == latest, IsUpToDate is true
+// and ProtocolMismatchDetected is true when AG version is ≥ v1.15.0.
+func TestCheckAvalancheCLIUpdate_UpToDate(t *testing.T) {
+	mock := &MockCLIVersionChecker{
+		LocalCLIVersion: "v1.9.6",
+		LocalAGVersion:  "v1.15.0",
+		LatestRelease: &GitHubRelease{
+			TagName: "v1.9.6",
+			Body:    "minor security fixes",
+		},
+	}
+
+	result, err := CheckAvalancheCLIUpdate(context.Background(), mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsUpToDate {
+		t.Errorf("expected IsUpToDate=true, got false")
+	}
+	if !result.ProtocolMismatchDetected {
+		t.Errorf("expected ProtocolMismatchDetected=true when AG=v1.15.0")
+	}
+}
+
+// TestCheckAvalancheCLIUpdate_UpdateAvailable verifies update detection when local < latest.
+func TestCheckAvalancheCLIUpdate_UpdateAvailable(t *testing.T) {
+	mock := &MockCLIVersionChecker{
+		LocalCLIVersion: "v1.9.5",
+		LocalAGVersion:  "v1.14.0",
+		LatestRelease: &GitHubRelease{
+			TagName: "v1.9.6",
+			Body:    "performance improvements",
+		},
+	}
+
+	result, err := CheckAvalancheCLIUpdate(context.Background(), mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsUpToDate {
+		t.Errorf("expected IsUpToDate=false, got true")
+	}
+	if result.LatestVersion != "v1.9.6" {
+		t.Errorf("expected LatestVersion='v1.9.6', got '%s'", result.LatestVersion)
+	}
+	if result.ProtocolMismatchDetected {
+		t.Errorf("expected ProtocolMismatchDetected=false when AG=v1.14.0")
+	}
+}
+
+// TestCheckAvalancheCLIUpdate_BuiltInVMNote verifies BuiltInVMNoted flag when release notes mention it.
+func TestCheckAvalancheCLIUpdate_BuiltInVMNote(t *testing.T) {
+	mock := &MockCLIVersionChecker{
+		LocalCLIVersion: "v1.9.6",
+		LocalAGVersion:  "v1.14.0",
+		LatestRelease: &GitHubRelease{
+			TagName: "v1.10.0",
+			Body:    "Subnet-EVM is now a Built-In VM, no separate plugin required.",
+		},
+	}
+
+	result, err := CheckAvalancheCLIUpdate(context.Background(), mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.BuiltInVMNoted {
+		t.Errorf("expected BuiltInVMNoted=true when release notes contain 'built-in vm'")
+	}
+}
+
+// TestCheckAvalancheCLIUpdate_GitHubError verifies graceful handling of GitHub API failure.
+func TestCheckAvalancheCLIUpdate_GitHubError(t *testing.T) {
+	mock := &MockCLIVersionChecker{
+		LocalCLIVersion:  "v1.9.6",
+		LocalAGVersion:   "v1.15.0",
+		LatestReleaseErr: errors.New("network timeout"),
+	}
+
+	result, err := CheckAvalancheCLIUpdate(context.Background(), mock)
+	// Should not return an error — GitHub failure is handled gracefully.
+	if err != nil {
+		t.Fatalf("unexpected hard error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result even on GitHub error")
+	}
+	// Mismatch should still be detected from local AG version.
+	if !result.ProtocolMismatchDetected {
+		t.Errorf("expected ProtocolMismatchDetected=true when AG=v1.15.0 even if GitHub is unreachable")
+	}
+}
+
+// TestCheckRPCProtocolMismatch_Detected verifies mismatch detection for AG ≥ v1.15.0.
+func TestCheckRPCProtocolMismatch_Detected(t *testing.T) {
+	cases := []struct {
+		agVersion string
+		want      bool
+	}{
+		{"v1.15.0", true},
+		{"v1.16.0", true},
+		{"v2.0.0", true},
+		{"v1.14.9", false},
+		{"v1.14.0", false},
+		{"v1.13.0", false},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(fmt.Sprintf("AG=%s", tc.agVersion), func(t *testing.T) {
+			mock := &MockCLIVersionChecker{LocalAGVersion: tc.agVersion}
+			got, err := CheckRPCProtocolMismatch(context.Background(), mock)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("AG=%s: expected mismatch=%v, got %v", tc.agVersion, tc.want, got)
+			}
+		})
+	}
+}
+
+// TestCheckRPCProtocolMismatch_AGNotFound verifies conservative (mismatch=true) behaviour
+// when the local avalanchego binary cannot be found.
+func TestCheckRPCProtocolMismatch_AGNotFound(t *testing.T) {
+	mock := &MockCLIVersionChecker{
+		LocalAGErr: errors.New("avalanchego binary not found in WSL"),
+	}
+
+	got, err := CheckRPCProtocolMismatch(context.Background(), mock)
+	if err != nil {
+		t.Fatalf("unexpected hard error: %v", err)
+	}
+	if !got {
+		t.Error("expected mismatch=true (conservative) when avalanchego cannot be found")
+	}
+}
+
+// ── isVersionAtLeast unit tests ──────────────────────────────────────────────
+
+func TestIsVersionAtLeast(t *testing.T) {
+	cases := []struct {
+		version    string
+		minVersion string
+		expected   bool
+	}{
+		{"v1.15.0", "v1.15.0", true},
+		{"v1.16.0", "v1.15.0", true},
+		{"v2.0.0", "v1.15.0", true},
+		{"v1.14.9", "v1.15.0", false},
+		{"v1.15.1", "v1.15.0", true},
+		{"v1.14.0", "v1.15.0", false},
+		{"v0.9.0", "v1.0.0", false},
+		{"v1.0.0", "v0.9.0", true},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(fmt.Sprintf("%s>=%s", tc.version, tc.minVersion), func(t *testing.T) {
+			got := isVersionAtLeast(tc.version, tc.minVersion)
+			if got != tc.expected {
+				t.Errorf("isVersionAtLeast(%q, %q) = %v, want %v",
+					tc.version, tc.minVersion, got, tc.expected)
+			}
+		})
+	}
+}
+
+// ── parseVersionFromOutput unit tests ───────────────────────────────────────
+
+func TestParseVersionFromOutput(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"avalanche version v1.9.6", "v1.9.6"},
+		{"v1.15.0, commit abc123", "v1.15.0"},
+		{"AvalancheGo/1.15.0", "AvalancheGo/1.15.0"}, // no leading v — falls through
+		{"  v2.0.0  ", "v2.0.0"},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.input, func(t *testing.T) {
+			got := parseVersionFromOutput(tc.input)
+			if got != tc.expected {
+				t.Errorf("parseVersionFromOutput(%q) = %q, want %q", tc.input, got, tc.expected)
+			}
+		})
 	}
 }
